@@ -20,3 +20,14 @@
 # Go workspace file
 go.work
 go.work.sum
+
+*.env
+!*.env/
+*.db
+!*.db/
+*_network/
+*.lock
+bin
+*.exe
+*.vscode
+*MosaicFS

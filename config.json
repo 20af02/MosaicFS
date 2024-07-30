@@ -1,0 +1,19 @@
+[
+      {
+            "listen_addr": ":3000",
+            "bootstrap_nodes": []
+      },
+      {
+            "listen_addr": ":4000",
+            "bootstrap_nodes": [
+                  ":3000"
+            ]
+      },
+      {
+            "listen_addr": ":5000",
+            "bootstrap_nodes": [
+                  ":3000",
+                  ":4000"
+            ]
+      }
+]

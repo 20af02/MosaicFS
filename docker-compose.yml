@@ -1,0 +1,70 @@
+version: '3.8' 
+
+services:
+
+  node2:
+    build: .
+    container_name: mosaicfs-node2
+    command: ["./bin/fs", "-nodes", "0.0.0.0:3000"]
+    # depends_on:
+    #   - node1
+    volumes:
+      - ./3000_network:/app/3000_network
+      - .env/server_3000.env:/app/.env/server_3000.env
+      - .env/db/server_3000.db:/app/.env/db/server_3000.db
+      - .env/db/server_3000.db.lock:/app/.env/db/server_3000.db.lock
+      - .env/.db:/app/.env/.db
+    networks:
+      - mosaic-network 
+    env_file:
+      - .env/server_3000.env 
+    tty: true
+    stdin_open: true  
+
+
+  node3:
+    build: .
+    container_name: mosaicfs-node3
+    # add sleep command
+    command: ["./bin/fs", "-nodes", "0.0.0.0:4000,node2:3000"]
+    depends_on:
+      # - node1
+      - node2
+    volumes:
+      - ./4000_network:/app/4000_network
+      - .env/server_4000.env:/app/.env/server_4000.env
+      - .env/db/server_4000.db:/app/.env/db/server_4000.db
+      - .env/db/server_4000.db.lock:/app/.env/db/server_4000.db.lock
+      - .env/.db:/app/.env/.db
+    networks:
+      - mosaic-network
+    env_file:
+      - .env/server_4000.env 
+    tty: true
+    stdin_open: true  
+
+  node4:
+    build: .
+    container_name: mosaicfs-node4
+    command: ["./bin/fs", "-nodes", "0.0.0.0:5000,node3:4000,node2:3000"]
+    depends_on:
+      # - node1
+      - node2
+      - node3
+    volumes:
+      - ./5000_network:/app/5000_network
+      - .env/server_4000.env:/app/.env/server_4000.env
+      - .env/db/server_4000.db:/app/.env/db/server_4000.db
+      - .env/db/server_4000.db.lock:/app/.env/db/server_4000.db.lock
+      - .env/.db:/app/.env/.db
+    networks:
+      - mosaic-network
+    env_file:
+      - .env/server_5000.env 
+    tty: true
+    stdin_open: true  
+
+
+networks:
+  mosaic-network: 
+    driver: bridge

@@ -5,13 +5,18 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
+
+	"github.com/20af02/MosaicFS/crypto"
 )
 
+// filename => awesomePicture.png
+// path => transformFunc(filename) => ROOT/pubkey/path
 const defaultRootFolderName = "ggnetwork"
 
 func CASPathTransformFunc(key string) PathKey {
@@ -28,7 +33,7 @@ func CASPathTransformFunc(key string) PathKey {
 		paths[i] = hashStr[from:to]
 	}
 	return PathKey{
-		PathName: strings.Join(paths, "/"),
+		PathName: strings.Join(paths, string(filepath.Separator)),
 		Filename: hashStr,
 	}
 }
@@ -41,7 +46,7 @@ type PathKey struct {
 }
 
 func (p PathKey) FirstPathName() string {
-	paths := strings.Split(p.PathName, "/")
+	paths := strings.Split(p.PathName, string(filepath.Separator))
 	if len(paths) == 0 {
 		return ""
 	}
@@ -49,13 +54,16 @@ func (p PathKey) FirstPathName() string {
 }
 
 func (p PathKey) FullPath() string {
-	return fmt.Sprintf("%s/%s", p.PathName, p.Filename)
+	return filepath.Join(p.PathName, p.Filename)
+	// return fmt.Sprintf("%s/%s", p.PathName, p.Filename)
 }
 
 type StoreOpts struct {
 	// Root is the folder name of the root directory containing all the files/folders of the store.
-	Root              string
+	Root string
+
 	PathTransformFunc PathTransformFunc
+	dbHandler         *DBHandler
 }
 
 var DefaultPathTransformFunc = func(key string) PathKey {
@@ -82,64 +90,133 @@ func NewStore(opts StoreOpts) *Store {
 	}
 }
 
-func (s *Store) Has(key string) bool {
+func (s *Store) Has(id string, key string) bool {
 	pathKey := s.PathTransformFunc(key)
-	fullPathWithRoot := fmt.Sprintf("%s/%s", s.Root, pathKey.FullPath())
+	fullPathWithRoot := filepath.Join(s.Root, id, pathKey.FullPath())
 	_, err := os.Stat(fullPathWithRoot)
+
+	// log.Printf("Error: %v", err)
 	return !errors.Is(err, os.ErrNotExist)
 	// return err != fs.ErrNotExist
 }
 
-func (s *Store) Delete(key string) error {
+func (s *Store) Clear() error {
+	return os.RemoveAll(s.Root)
+}
+
+func (s *Store) Delete(id string, key string) error {
 	pathKey := s.PathTransformFunc(key)
 	defer func() {
 		log.Printf("Deleted [%s] from disk", pathKey.Filename)
 	}()
-	firstPathNameWithRoot := fmt.Sprintf("%s/%s", s.Root, pathKey.FirstPathName())
+	firstPathNameWithNS := filepath.Join(id, pathKey.FirstPathName())
+	firstPathNameWithRoot := filepath.Join(s.Root, firstPathNameWithNS)
+	log.Printf("Deleting [%s]", firstPathNameWithRoot)
+
+	// log.Printf("Deleting metadata for [%s]", pathKey.Filename)
+
+	if err := s.dbHandler.RemoveLocalMetadata(key); err != nil {
+		log.Printf("Error deleting metadata: %v", err)
+	}
+	log.Printf("[%s] deleting [%s]", id, firstPathNameWithRoot)
+
 	return os.RemoveAll(firstPathNameWithRoot)
 }
 
-func (s *Store) Read(key string) (io.Reader, error) {
-	f, err := s.readStream(key)
+func (s *Store) Write(id string, key string, r io.Reader) (int64, error) {
+	// if s.Has(key) {
+	// 	return nil
+	// }
+	return s.writeStream(id, key, r)
+}
+
+func (s *Store) WriteDecrypt(encKey []byte, id string, key string, r io.Reader) (int64, error) {
+
+	f, err := s.openFileForWriting(id, key)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
 	defer f.Close()
 
-	buf := new(bytes.Buffer)
-	_, err = io.Copy(buf, f)
-
-	return buf, err
+	n, err := crypto.CopyDecrypt(encKey, r, f)
+	return int64(n), err
 }
 
-func (s *Store) readStream(key string) (io.ReadCloser, error) {
+func (s *Store) openFileForWriting(id string, key string) (*os.File, error) {
 	pathKey := s.PathTransformFunc(key)
-	fullPathWithRoot := fmt.Sprintf("%s/%s", s.Root, pathKey.FullPath())
-	return os.Open(fullPathWithRoot)
-
-}
-
-func (s *Store) writeStream(key string, r io.Reader) error {
-	pathKey := s.PathTransformFunc(key)
-	pathNameWithRoot := fmt.Sprintf("%s/%s", s.Root, pathKey.PathName)
+	pathNameWithRoot := filepath.Join(s.Root, id, pathKey.PathName)
 	if err := os.MkdirAll(pathNameWithRoot, os.ModePerm); err != nil {
-		return err
+		return nil, err
 	}
 
 	fullPath := pathKey.FullPath()
-	fullPathWithRoot := fmt.Sprintf("%s/%s", s.Root, fullPath)
+	fullPathWithRoot := filepath.Join(s.Root, id, fullPath)
+	// log.Printf("Writing to_: %s", fullPathWithRoot)
+	return os.Create(fullPathWithRoot)
+}
 
-	f, err := os.Create(fullPathWithRoot)
+func (s *Store) writeStream(id string, key string, r io.Reader) (int64, error) {
+	f, err := s.openFileForWriting(id, key)
 	if err != nil {
-		return err
+		return 0, err
+	}
+	defer f.Close()
+	return io.Copy(f, r)
+
+}
+
+// @FIXME: Instead of copying directly to a reader, we first copy this into a buffer. Maybe just return the File from the readStream?
+func (s *Store) Read(id string, key string) (int64, io.Reader, error) {
+	// return s.readStream(key)
+	n, f, err := s.readStream(id, key)
+	if err != nil {
+		return 0, nil, err
 	}
 
-	n, err := io.Copy(f, r)
-	if err != nil {
-		return err
+	// Copy the file with a reader if on windows
+
+	if runtime.GOOS == "windows" {
+		buf := new(bytes.Buffer)
+		_, err := io.Copy(buf, f)
+		if err != nil {
+			return 0, nil, err
+		}
+		defer f.Close()
+		return n, buf, nil
 	}
 
-	log.Printf("Wrote (%d) bytes to %s", n, fullPathWithRoot)
+	// avoid keeping x-lock on the file
+	pr, pw := io.Pipe()
 
-	return nil
+	// copy data and close the pipe when done
+	go func() {
+		// defer wg.Done()
+		defer pw.Close()
+		defer f.Close()
+
+		_, err := io.Copy(pw, f)
+		if err != nil {
+			log.Printf("Error: %v", err)
+		}
+	}()
+	return n, pr, nil
+
+}
+
+func (s *Store) readStream(id string, key string) (int64, io.ReadCloser, error) {
+	pathKey := s.PathTransformFunc(key)
+	fullPathWithRoot := filepath.Join(s.Root, id, pathKey.FullPath())
+
+	file, err := os.Open(fullPathWithRoot)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	fi, err := file.Stat()
+	if err != nil {
+		return 0, nil, err
+	}
+
+	return fi.Size(), file, nil
+
 }

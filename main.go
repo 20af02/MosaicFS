@@ -1,38 +1,34 @@
 package main
 
 import (
-	"fmt"
+	"flag"
 	"log"
-
-	"github.com/20af02/MosaicFS/p2p"
+	"strings"
 )
 
-func OnPeer(peer p2p.Peer) error {
-	peer.Close()
-	fmt.Println("doing some logic with the peer outside of TCPTransport")
-	return nil
-	// return fmt.Errorf("failed the onpeer func")
-}
-
 func main() {
-	tcpOpts := p2p.TCPTransportOpts{
-		ListenAddr:    ":3000",
-		HandshakeFunc: p2p.NOPHandshakeFunc,
-		Decoder:       p2p.DefaultDecoder{},
-		OnPeer:        OnPeer,
+	configFile := flag.String("config", "", "Path to the configuration file")
+	bootstrapNodes := flag.String("nodes", ":3000, :4000, :5000", "Comma separated list of ports (e.g. :3000, :4000, :5000). The first is the master node, the rest are called to join the network.")
+	flag.Parse()
+
+	// "node1:3000, node2:4000, node3:5000"
+	// => ["node1:3000", "node2:4000", "node3:5000"]
+
+	nodeList := strings.Split(*bootstrapNodes, ",")
+
+	servers, err := LoadAndCreateServers(*configFile, nodeList...)
+	if err != nil {
+		log.Fatal(err)
 	}
-	tr := p2p.NewTCPTransport(tcpOpts)
+	// app is the first server in the list
+	app := servers[0]
 
-	go func() {
-		for {
-			msg := <-tr.Consume()
-			fmt.Printf("%+v", msg)
-		}
-	}()
+	fsCli := NewFileServerCLI(app)
+	// go func() {
+	Tui(fsCli)
+	// }()
 
-	if err := tr.ListenAndAccept(); err != nil {
-		log.Fatalf("Failed to listen and accept: %v", err)
-	}
+	// time.Sleep(15 * time.Second)
 
-	select {}
+	// select {}
 }
