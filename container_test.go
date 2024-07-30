@@ -22,6 +22,14 @@ func TestDockerComposeUpAttachAndBuild(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to start Docker Compose: %s", err)
 	}
+	defer func() {
+		// 7. Stop and remove the containers
+		cmd := exec.Command("make", "down")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("Failed to tear down Docker Compose: %s\n%s", err, output)
+		}
+	}()
 
 	// 3. Wait for containers to stabilize
 	time.Sleep(5 * time.Second)
@@ -34,9 +42,9 @@ func TestDockerComposeUpAttachAndBuild(t *testing.T) {
 	}
 
 	// 5. Verification steps:
-	nodes := []string{"node2", "node3", "node4"}
-	expectedLog := "starting server..."       // Or another expected log message
-	connectedLog := "Connected with remote: " // Or another expected log message for connection verification
+	nodes := []string{"node1", "node2", "node3"}
+	expectedLog := "starting server..."
+	connectedLog := "Connected with remote: "
 	for _, node := range nodes {
 		cmd := exec.Command("docker", "logs", fmt.Sprintf("mosaicfs-%s", node))
 		output, err := cmd.CombinedOutput()
@@ -53,10 +61,4 @@ func TestDockerComposeUpAttachAndBuild(t *testing.T) {
 		}
 	}
 
-	// 7. Stop and remove the containers
-	cmd = exec.Command("make", "down")
-	output, err = cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("Failed to tear down Docker Compose: %s\n%s", err, output)
-	}
 }

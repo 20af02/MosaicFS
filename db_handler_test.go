@@ -1,9 +1,10 @@
 package main
 
 import (
-	// For temporary file creation
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestDBHandler(t *testing.T) {
@@ -19,63 +20,34 @@ func TestDBHandler(t *testing.T) {
 	// 1. Test UpdateFile (and initial GetFileMetadata)
 	fmd := FileMetadata{Key: "test.txt", Size: 1024, Replicas: 1, ReplicaLocations: []string{"127.0.0.1"}}
 	added, err := dh.UpdateFile(fmd)
-	if err != nil {
-		t.Errorf("UpdateFile failed: %v", err)
-	}
-	if !added {
-		t.Error("Expected file to be added")
-	}
-
-	// Since the DB was empty, this should be the first entry.
-	storedFmd, err := dh.GetFileMetadata("test.txt")
-	if err != nil {
-		t.Errorf("GetFileMetadata (after update) failed: %v", err)
-	}
-	if !compareFileMetadata(storedFmd, &fmd) {
-		t.Error("Stored metadata does not match the original")
-	}
+	require.NoError(t, err, "UpdateFile should succeed")
+	require.True(t, added, "File should be newly added")
 
 	// 2. Test GetFileMetadata (after update)
-	storedFmd, err = dh.GetFileMetadata("test.txt")
-	if err != nil {
-		t.Errorf("GetFileMetadata failed: %v", err)
-	}
-	if !compareFileMetadata(storedFmd, &fmd) {
-		t.Error("Stored metadata does not match the expected value")
-	}
+	storedFmd, err := dh.GetFileMetadata("test.txt")
+	require.NoError(t, err, "GetFileMetadata should succeed")
+	require.True(t, compareFileMetadata(storedFmd, &fmd),
+		"Stored metadata should match the original")
 
 	// 3. Test ListFiles (should have one entry now)
 	files, err := dh.ListFiles()
-	if err != nil {
-		t.Errorf("ListFiles failed: %v", err)
-	}
-	if len(files) != 1 {
-		t.Errorf("Expected 1 file, got %d", len(files))
-	}
-	if !compareFileMetadata(&files[0], &fmd) {
-		t.Error("Listed metadata does not match the expected value")
-	}
+	require.NoError(t, err, "ListFiles should succeed")
+	require.Len(t, files, 1, "Should have one file listed")
+	require.True(t, compareFileMetadata(&files[0], &fmd),
+		"Listed metadata should match")
 
 	// 4. Test DeleteFileMetadata
 	err = dh.DeleteFileMetadata("test.txt")
-	if err != nil {
-		t.Errorf("DeleteFileMetadata failed: %v", err)
-	}
+	require.NoError(t, err, "DeleteFileMetadata should succeed")
 
 	// 5. Test GetFileMetadata (after delete, should fail)
 	_, err = dh.GetFileMetadata("test.txt")
-	if err == nil {
-		t.Error("GetFileMetadata should have returned an error after deletion")
-	}
+	require.Error(t, err, "GetFileMetadata should fail after deletion")
 
 	// 6. Test ListFiles (should be empty again)
 	files, err = dh.ListFiles()
-	if err != nil {
-		t.Errorf("ListFiles failed: %v", err)
-	}
-	if len(files) != 0 {
-		t.Errorf("Expected 0 files, got %d", len(files))
-	}
+	require.NoError(t, err, "ListFiles should succeed")
+	require.Empty(t, files, "List should be empty after deletion")
 }
 
 // Helper function to create a temporary database file for testing

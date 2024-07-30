@@ -1,33 +1,21 @@
-# MosaicFS A Decentralized, Content-Addressable File System in Go
+# MosaicFS 
 
-MosaicFS is a , open-source file storage system designed for the decentralized web. Built with Go, it prioritizes data integrity, scalability, and efficient handling of large files through content addressing and a custom peer-to-peer network.
+MosaicFS is a decentralized, content-addressable file system built in Go. It empowers you to securely store and share files across a peer-to-peer network without relying on central servers.
 
 # 1. Intro
-## Overview
-MosaicFS is a framework for building distributed storage solutions without the need for central servers. By combining content addressing with a custom-built peer-to-peer library, it offers a unique blend of reliability, efficiency, and customizability.
-
 ## Key Features
-
-- __Content Addressing__: Files are uniquely identified by their content (hash), ensuring data integrity and deduplication.
-
-- __Peer-to-Peer Architecture__: Files are distributed across a network of nodes, providing fault tolerance and scalability.
-
-- __Large File Streaming__: Efficiently handles massive files by splitting them into chunks and streaming them across the network.
-
-- __Custom P2P Network (TCP-based)__: A flexible and optimized peer-to-peer library designed for fast and reliable communication.
-
-- __CLI Interface (Cobra)__: Intuitive command-line interface for managing files (`store`, `get`, `list`, etc.).
-- __Dockerized Deployment__: Easily spin up nodes using Docker containers for quick setup and scalability.
+* **Decentralized Storage:** Your files are distributed across multiple nodes, ensuring no single point of failure.
+* **Content Integrity:** Files are identified by their unique content (hash), guaranteeing they haven't been tampered with.
+* **Efficient Large File Handling:** Splitting files into chunks enables fast, reliable transfers across the network.
+* **Customizable P2P Network:** Tailor the communication layer to your specific needs.
+* **Namespace Isolation:** Isolated data storage for enhanced privacy.
 
 ## Why Choose MosaicFS?
 
-MosaicFS is ideal for applications that require:
-
-- __Decentralized Storage__: Distribute your data across multiple nodes without relying on a central server.
-- __Namespace Isolation__: Store files in a specific namespace that is only accessible to your node, while still being replicated across the network.
-- __Content Integrity__: Ensure your files remain unchanged and verifiable through content addressing.
-- __Efficient Large File Handling__: Break down and distribute large files seamlessly across the network.
-- __Customizability__: Leverage the flexible peer-to-peer library to tailor communication protocols for your specific needs.
+MosaicFS is perfect for:
+* **Secure Data Sharing:** Collaborate on projects without worrying about data leaks.
+* **Building dApps:** Create decentralized applications with reliable, censorship-resistant storage.
+* **Archiving Content:** Preserve valuable information for the long term.
 
 # 2. Getting Started
 Prerequisites
@@ -37,25 +25,20 @@ Prerequisites
 
 ## Build
 1. Clone the repository:
-
 ```bash
 git clone https://github.com/20af02/MosaicFS.git
 ```
-
 2. Build the project:
 ```bash
 make build
 ```
-
-3. Build the container image (Recommended):
+3. (Optional) Build the Docker image:
 ```bash
 make compose-build
 ```
 
 # 3.  Usage
 ## 1. Creating multiple nodes
-
-
 
 ### Without Docker
 -  Using the config file (eg. [config.json](https://github.com/20af02/MosaicFS/config.json))
@@ -78,7 +61,7 @@ make compose-build
 ```bash
 make run-multi
 ```
-This creates three nodes on ports `3000`, `4000`, and `5000`. The third node knows about the first two nodes, and the second node knows about the first node.
+This creates three nodes on ports `3000`, `4000`, and `5000`. The bootstrap nodes specify the initial nodes to connect to.
 
 
 - Passing the nodes as arguments
@@ -102,6 +85,10 @@ services:
     command: ["./bin/fs", "-nodes", "0.0.0.0:<node1_port>"]
     volumes:
       - ./<node1_port>_network:/app/<node1_port>_network
+      - .env/server_<node1_port>.env:/app/.env/server_<node1_port>.env
+      - .env/db/server_<node1_port>.db:/app/.env/db/server_<node1_port>.db
+      - .env/db/server_<node1_port>.db.lock:/app/.env/db/server_<node1_port>.db.lock
+      - .env/.db:/app/.env/.db
     networks:
       - mosaic-network 
     env_file:
@@ -114,9 +101,13 @@ services:
     container_name: mosaicfs-node2
     command: ["./bin/fs", "-nodes", "0.0.0.0:<node2_port>,node1:<node1_port>"]
     depends_on:
-      - node2
+      - node1
     volumes:
       - ./<node2_port>_network:/app/<node2_port>_network
+      - .env/server_<node2_port>.env:/app/.env/server_<node2_port>.env
+      - .env/db/server_<node2_port>.db:/app/.env/db/server_<node2_port>.db
+      - .env/db/server_<node2_port>.db.lock:/app/.env/db/server_<node2_port>.db.lock
+      - .env/.db:/app/.env/.db
     networks:
       - mosaic-network
     env_file:
@@ -140,6 +131,52 @@ When finished, tear down the containers:
 make down
 ```
 
+## 2. Code Example: Storing a File
+```go
+package main
+
+import (
+	"context"
+	"log"
+  "github.com/20af02/MosaicFS"
+  )
+
+func main() {
+	// 1. Create Server Instances
+	server1 := makeServer(&NodeConfig{
+		ListenAddr:     ":3000",
+		BootstrapNodes: []string{},
+	})
+	server2 := makeServer(&NodeConfig{
+		ListenAddr:     ":4000",
+		BootstrapNodes: []string{"localhost:3000"},
+	})
+
+	// 2. Start Servers in Background
+	go log.Fatal(server1.Start())
+	go log.Fatal(server2.Start())
+	defer server1.Stop()
+	defer server2.Stop()
+
+	time.Sleep(1 * time.Second)
+
+	// 3. Store a file
+	key := "my_important_file.txt"
+	file, err := os.Open(key)
+	if err != nil {
+		log.Printf("Error opening file: %s", err)
+		return
+	}
+	defer file.Close()
+
+	if err := server1.Store(key, file); err != nil {
+		log.Fatalf("Error storing file: %s", err)
+	}
+
+	log.Println("File stored successfully!")
+}
+```
+
 # 4. TUI Interface
 Interact with MosaicFS using the command-line interface:
 
@@ -161,7 +198,7 @@ mosaicfs ls
 
 For more commands and options, run ```help```.
 
-## Connecting to Containers 
+## 1. Connecting to Containers 
 
 ```bash
 docker attach <container_id> # (from docker ps. e.g., docker attach mosaicfs-node2)
@@ -172,13 +209,14 @@ make up-node # connects to mosaicfs-node2 by default
 
 
 ## 2. Example Usage
-This basic example stores this `README.md` file in the network, deletes it locally, then fetches it, and finally deletes it from the network.
+This example demonstrates how to use MosaicFS to store, retrieve, and delete the `README.md` file across multiple nodes in the network:
 
+1. Start the MosaicFS containers:
 ```bash
 make up
 docker attach mosaicfs-node1
 ```
-Inside the container:
+2. Inside the container:
 ```bash
 store README.md 
 # [:3000] received and written: (6866) bytes
@@ -224,8 +262,4 @@ Open a pull request with a detailed description of your changes.
 The source code in this repository and resulting container images are licensed under the [MIT License](https://opensource.org/license/mit). Feel free to use, modify, and distribute the project as you see fit.
 
 ## Disclaimer:
-MosaicFS is under active development and may have limitations or bugs. Use at your own risk.
-
-# 6. Release Notes
-
-## v1.0.0 (2024-07-29)
+MosaicFS is still in active development and may contain bugs or limitations. Use it at your own risk. We are not responsible for any data loss or other issues that may arise.

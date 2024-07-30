@@ -15,9 +15,7 @@ import (
 	"github.com/20af02/MosaicFS/crypto"
 )
 
-// filename => awesomePicture.png
-// path => transformFunc(filename) => ROOT/pubkey/path
-const defaultRootFolderName = "ggnetwork"
+const defaultRootFolderName = "default_network_store"
 
 func CASPathTransformFunc(key string) PathKey {
 	hash := sha1.Sum([]byte(key))

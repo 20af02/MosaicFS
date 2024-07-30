@@ -2,12 +2,10 @@ version: '3.8'
 
 services:
 
-  node2:
+  node1:
     build: .
-    container_name: mosaicfs-node2
+    container_name: mosaicfs-node1
     command: ["./bin/fs", "-nodes", "0.0.0.0:3000"]
-    # depends_on:
-    #   - node1
     volumes:
       - ./3000_network:/app/3000_network
       - .env/server_3000.env:/app/.env/server_3000.env
@@ -22,14 +20,13 @@ services:
     stdin_open: true  
 
 
-  node3:
+  node2:
     build: .
-    container_name: mosaicfs-node3
+    container_name: mosaicfs-node2
     # add sleep command
-    command: ["./bin/fs", "-nodes", "0.0.0.0:4000,node2:3000"]
+    command: ["./bin/fs", "-nodes", "0.0.0.0:4000,node1:3000"]
     depends_on:
-      # - node1
-      - node2
+      - node1
     volumes:
       - ./4000_network:/app/4000_network
       - .env/server_4000.env:/app/.env/server_4000.env
@@ -43,14 +40,13 @@ services:
     tty: true
     stdin_open: true  
 
-  node4:
+  node3:
     build: .
-    container_name: mosaicfs-node4
-    command: ["./bin/fs", "-nodes", "0.0.0.0:5000,node3:4000,node2:3000"]
+    container_name: mosaicfs-node3
+    command: ["./bin/fs", "-nodes", "0.0.0.0:5000,node2:4000,node1:3000"]
     depends_on:
-      # - node1
+      - node1
       - node2
-      - node3
     volumes:
       - ./5000_network:/app/5000_network
       - .env/server_4000.env:/app/.env/server_4000.env

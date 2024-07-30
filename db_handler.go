@@ -1,4 +1,4 @@
-package main // Or place this in a dedicated package (e.g., "storage")
+package main
 
 import (
 	"bytes"

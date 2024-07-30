@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"time"
 
-	// "fmt"
 	"io"
 	"log"
 	"sync"
@@ -70,21 +69,6 @@ func NewFileServer(opts FileServerOpts) *FileServer {
 		peers: make(map[string]p2p.Peer),
 	}
 }
-
-// func (s *FileServer) stream(msg *Message) error {
-// 	peers := []io.Writer{}
-
-// 	// s.peerLock.Lock()
-// 	// defer s.peerLock.Unlock()
-
-// 	// TODO: make encoding interface to be generic
-// 	for _, peer := range s.peers {
-// 		peers = append(peers, peer)
-// 	}
-
-// 	mw := io.MultiWriter(peers...)
-// 	return gob.NewEncoder(mw).Encode(msg)
-// }
 
 func (s *FileServer) broadcast(msg *Message) error {
 	buf := new(bytes.Buffer)
@@ -257,14 +241,6 @@ func (s *FileServer) Delete(key string) error {
 
 func (s *FileServer) ListFiles() ([]FileMetadata, error) {
 	return s.store.dbHandler.ListFiles()
-	// files, err := s.store.dbHandler.ListFiles()
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// // for i := range files {
-	// // 	fmt.Printf("[%s] File: %s, Size: %d, Replicas: %d, Locations: %v\n", s.Transport.Addr(), files[i].Key, files[i].Size, files[i].Replicas, files[i].ReplicaLocations)
-	// // }
-	// return files, nil
 }
 
 func (s *FileServer) Stop() {
@@ -307,12 +283,6 @@ func (s *FileServer) loop() {
 		case <-s.quitch:
 			return
 		}
-		// switch rpc.Type {
-		// case p2p.StoreRPC:
-		// 	if err := s.store.Write(rpc.Key, rpc.Payload); err != nil {
-		// 		// log.Printf("Failed to write to store: %v", err)
-		// 	}
-		// }
 	}
 }
 
@@ -393,7 +363,7 @@ func (s *FileServer) handleMessageDeleteFile(from string, msg MessageDeleteFile)
 func (s *FileServer) bootstrapNetwork() error {
 
 	maxAttempts := 3                // Maximum number of retry attempts
-	initialDelay := 5 * time.Second // Initial backoff delay
+	initialDelay := 2 * time.Second // Initial backoff delay
 
 	for _, addr := range s.BootStrapNodes {
 		if len(addr) == 0 {
@@ -424,21 +394,6 @@ func (s *FileServer) bootstrapNetwork() error {
 		}
 	}
 	return nil
-	// for _, addr := range s.BootStrapNodes {
-	// 	if len(addr) == 0 {
-	// 		continue
-	// 	}
-	// 	go func(addr string) {
-	// 		fmt.Printf("[%s] dialing to remote %s\n", s.Transport.Addr(), addr)
-	// 		if err := s.Transport.Dial(addr); err != nil {
-	// 			log.Printf("[%s] Failed to dial: %v", s.Transport.Addr(), err)
-	// 		}
-	// 	}(addr)
-	// 	// if err := s.Transport.Dial(addr); err != nil {
-	// 	// 	return err
-	// 	// }
-	// }
-	// return nil
 
 }
 
@@ -453,11 +408,6 @@ func (s *FileServer) Start() error {
 	s.loop()
 	return nil
 }
-
-// func (s *FileServer) Store(key string, r io.Reader) error {
-// 	_, err := s.store.Write(key, r)
-// 	return err
-// }
 
 func init() {
 	gob.Register(MessageStoreFile{})

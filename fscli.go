@@ -34,7 +34,6 @@ func NewFileServerCLI(fs *FileServer) *cobra.Command {
 				log.Fatalf("Error getting file: %v", err)
 			}
 			fmt.Printf("File [%s] retrieved successfully!\n", key)
-			// fmt.Printf("File contents:\n %s\n", file)
 
 		},
 	}
@@ -54,7 +53,7 @@ func NewFileServerCLI(fs *FileServer) *cobra.Command {
 			}
 			defer file.Close()
 
-			key := filePath // Or use a different key generation strategy
+			key := filePath
 			if err := fs.Store(key, file); err != nil {
 				log.Fatalf("Error storing file: %s", err)
 			}
@@ -69,14 +68,12 @@ func NewFileServerCLI(fs *FileServer) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			key := args[0]
 
-			// 1. Get flag value
-			deleteLocal, err := cmd.Flags().GetBool("local") // Add --local flag
+			deleteLocal, err := cmd.Flags().GetBool("local")
 			if err != nil {
 				fmt.Printf("Error getting --local flag: %s\n", err)
 				return
 			}
 
-			// 2. Check if the flag is set
 			if deleteLocal {
 				if err := fs.store.Delete(fs.ID, key); err != nil {
 					fmt.Printf("Error deleting local file [%s]: %s\n", key, err)
@@ -95,7 +92,7 @@ func NewFileServerCLI(fs *FileServer) *cobra.Command {
 		PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
 			// Reset flag to its default value before each run
 			err := cmd.Flags().Set("local", "false")
-			return err // Propagate any errors from Set
+			return err
 		},
 	}
 	deleteCmd.Flags().BoolP("local", "l", false, "Delete the file locally")
@@ -111,7 +108,7 @@ func NewFileServerCLI(fs *FileServer) *cobra.Command {
 			w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 
 			// Add rows to the tabwriter
-			fmt.Fprintln(w, "File\tSize (bytes)\tReplicas\tLocations") // Header
+			fmt.Fprintln(w, "File\tSize (bytes)\tReplicas\tLocations")
 			for _, file := range files {
 				fmt.Fprintf(w, "%s\t%d\t%d\t%v\n", file.Key, file.Size, file.Replicas, file.ReplicaLocations)
 			}
@@ -138,10 +135,8 @@ func Tui(rootCmd *cobra.Command) {
 		},
 		Stdin: os.Stdin,
 	}
-	// log.Println("Exiting MosaicFS CLI...")
 	defer log.Println("Exited MosaicFS CLI...")
 
-	// Interactive CLI Loop with Promptui
 	for {
 		input, err := prompt.Run()
 		if err != nil {
