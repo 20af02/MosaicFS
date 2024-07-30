@@ -41,7 +41,7 @@ make compose-build
 ## 1. Creating multiple nodes
 
 ### Without Docker
--  Using the config file (eg. [config.json](https://github.com/20af02/MosaicFS/config.json))
+-  Using the config file (eg. [config.json](https://github.com/20af02/MosaicFS/blob/main/config.json))
 ```json
 [
       {
@@ -75,7 +75,7 @@ make build
 By default, make-run only creates one node on port `3000`.
 
 ### Docker Compose (Recommended)
-Modify the [docker-compose.yml](https://github.com/20af02/MosaicFS/docker-compose.yml) file to specify the number of nodes and their configurations:
+Modify the [docker-compose.yml](https://github.com/20af02/MosaicFS/blob/main/docker-compose.yml) file to specify the number of nodes and their configurations:
 
 ```yaml
 services:
